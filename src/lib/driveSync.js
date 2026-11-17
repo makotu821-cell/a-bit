@@ -9,7 +9,9 @@ const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY
 const ROOT = import.meta.env.VITE_GOOGLE_DRIVE_FOLDER_ID
 
 export const driveSyncEnabled = isDemo || Boolean(ROOT && (API_KEY || import.meta.env.VITE_GOOGLE_CLIENT_ID))
-export const driveRootUrl = ROOT ? `https://drive.google.com/drive/folders/${ROOT}` : null
+// ROOT に "root" を指定するとマイドライブ全体が対象になる（共有アカウント運用向け）
+const IS_MY_DRIVE = ROOT === 'root'
+export const driveRootUrl = !ROOT ? null : IS_MY_DRIVE ? 'https://drive.google.com/drive/my-drive' : `https://drive.google.com/drive/folders/${ROOT}`
 
 const FOLDER_MIME = 'application/vnd.google-apps.folder'
 const FIELDS = 'nextPageToken,files(id,name,mimeType,parents,webViewLink,size,modifiedTime,iconLink)'
@@ -18,6 +20,8 @@ export class DriveAuthError extends Error {}
 
 async function list(q, pageToken) {
   const token = currentDriveToken()
+  // マイドライブ全体は API キーでは読めないので、最初から Google ログインを求める
+  if (!token && (IS_MY_DRIVE || !API_KEY)) throw new DriveAuthError('Googleログインが必要です')
   const params = new URLSearchParams({
     q, fields: FIELDS, pageSize: '1000',
     supportsAllDrives: 'true', includeItemsFromAllDrives: 'true',
@@ -27,7 +31,7 @@ async function list(q, pageToken) {
   const res = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   })
-  if (res.status === 401 || res.status === 403 || res.status === 404) {
+  if (res.status === 401 || res.status === 403 || res.status === 404 || (!token && res.status === 400)) {
     throw new DriveAuthError('Googleドライブのフォルダを読めませんでした')
   }
   if (!res.ok) throw new Error(`Google Drive API エラー (${res.status})`)

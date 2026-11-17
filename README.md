@@ -78,6 +78,8 @@ Base44 版（band-base-sync.base44.app）を GitHub + Supabase で作り直し�
 1. バンドの共有フォルダをブラウザのドライブで開く
 2. アドレスバーの `https://drive.google.com/drive/folders/1AbCdEfGh...` の **`folders/` より後ろの文字列**（`?usp=...` が付いていたらその前まで）→ `VITE_GOOGLE_DRIVE_FOLDER_ID`
 
+> **バンド共有のGoogleアカウントを使っている場合**は `root` と入れると「マイドライブ全体」が対象になる。この場合は API キーでは読めないので、各自アプリの「Googleログイン」でその共有アカウントにログインする（テストユーザーにはその共有アカウントの Gmail を追加）。
+
 > Secret を追加・変更したら、**Actions → Deploy to GitHub Pages → Run workflow** で再ビルドすると反映される。
 
 ### 3. GitHub Pages を有効化
