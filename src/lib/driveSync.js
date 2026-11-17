@@ -2,7 +2,7 @@
 import { useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { isDemo } from './supabase'
-import { currentDriveToken, loginGoogleDrive } from './googleDrive'
+import { clearDriveToken, currentDriveToken, loginGoogleDrive } from './googleDrive'
 import { matchDriveFiles } from './driveMatch'
 
 const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY
@@ -31,6 +31,7 @@ async function list(q, pageToken) {
   const res = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   })
+  if (token && res.status === 401) clearDriveToken()
   if (res.status === 401 || res.status === 403 || res.status === 404 || (!token && res.status === 400)) {
     throw new DriveAuthError('Googleドライブのフォルダを読めませんでした')
   }

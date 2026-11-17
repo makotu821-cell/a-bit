@@ -10,6 +10,8 @@ export default function AuthGate({ children }) {
   const [email, setEmail] = useState('')
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
+  const [code, setCode] = useState('')
+  const [verifying, setVerifying] = useState(false)
 
   useEffect(() => {
     if (!isConfigured || isDemo) return
@@ -45,20 +47,35 @@ export default function AuthGate({ children }) {
     else setSent(true)
   }
 
+  // メールの6桁コードでログイン（ホーム画面アプリでも使える）
+  const verify = async (e) => {
+    e.preventDefault()
+    setVerifying(true)
+    const { error } = await supabase.auth.verifyOtp({ email, token: code, type: 'email' })
+    setVerifying(false)
+    if (error) toast.error('コードが違うか、期限切れです')
+  }
+
   return (
     <Shell>
       {sent ? (
         <div className="text-center">
           <Mail className="h-10 w-10 mx-auto text-accent mb-3" />
           <p className="font-medium">ログイン用のメールを送りました</p>
-          <p className="text-sm text-muted mt-1">{email} に届いたリンクを開いてください</p>
-          <Button variant="ghost" className="mt-4" onClick={() => setSent(false)}>やり直す</Button>
+          <p className="text-sm text-muted mt-1">{email} に届いた<b className="text-slate-200">6桁のコード</b>を入力するか、メールのリンクを開いてください</p>
+          <form onSubmit={verify} className="mt-4 space-y-2">
+            <Input inputMode="numeric" autoComplete="one-time-code" maxLength={10} placeholder="123456"
+              className="text-center tracking-[0.4em] num" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} />
+            <Button type="submit" className="w-full justify-center" loading={verifying} disabled={code.length < 6}>ログイン</Button>
+          </form>
+          <p className="text-[11px] text-muted mt-3">ホーム画面に追加したアプリでは、コード入力でログインしてください（リンクはSafariで開くため）</p>
+          <Button variant="ghost" className="mt-2" onClick={() => { setSent(false); setCode('') }}>やり直す</Button>
         </div>
       ) : (
         <form onSubmit={send} className="space-y-3">
-          <p className="text-sm text-muted">メールアドレスにログイン用リンクを送ります</p>
+          <p className="text-sm text-muted">メールアドレスにログイン用のコードとリンクを送ります。一度ログインすれば、この端末ではログインしたままになります。</p>
           <Input type="email" required placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
-          <Button type="submit" className="w-full justify-center" loading={sending}>ログインリンクを送信</Button>
+          <Button type="submit" className="w-full justify-center" loading={sending}>ログインメールを送信</Button>
         </form>
       )}
     </Shell>

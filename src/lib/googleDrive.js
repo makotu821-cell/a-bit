@@ -4,7 +4,13 @@ const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY
 
 export const driveEnabled = Boolean(CLIENT_ID && API_KEY)
 
-let token = null
+const TOKEN_KEY = 'a-bit-google-token'
+let token = (() => {
+  try {
+    const t = JSON.parse(localStorage.getItem(TOKEN_KEY) || 'null')
+    return t && t.exp > Date.now() ? t.value : null
+  } catch { return null }
+})()
 const loaded = {}
 
 function loadScript(src) {
@@ -29,7 +35,20 @@ async function ensureLibs() {
 }
 
 /** 現在の Google アクセストークン（未ログインなら null） */
-export const currentDriveToken = () => token
+export const currentDriveToken = () => {
+  if (!token) return null
+  try {
+    const t = JSON.parse(localStorage.getItem(TOKEN_KEY) || 'null')
+    if (t && t.exp <= Date.now()) { localStorage.removeItem(TOKEN_KEY); token = null }
+  } catch { /* noop */ }
+  return token
+}
+
+/** 期限切れ・無効なトークンを捨てる */
+export function clearDriveToken() {
+  token = null
+  try { localStorage.removeItem(TOKEN_KEY) } catch { /* noop */ }
+}
 
 /** Google ログイン（Drive 読み取り許可）してトークンを得る */
 export async function loginGoogleDrive() {
@@ -47,7 +66,9 @@ function getToken() {
       callback: (res) => {
         if (res.error) return reject(res)
         token = res.access_token
-        setTimeout(() => (token = null), (res.expires_in - 60) * 1000)
+        const exp = Date.now() + (res.expires_in - 60) * 1000
+        try { localStorage.setItem(TOKEN_KEY, JSON.stringify({ value: token, exp })) } catch { /* noop */ }
+        setTimeout(() => (token = null), exp - Date.now())
         resolve(token)
       },
     })
