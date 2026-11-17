@@ -31,7 +31,8 @@ Base44 版（band-base-sync.base44.app）を GitHub + Supabase で作り直し�
 5. **Authentication → URL Configuration** の *Site URL* に公開URL（手順3で決まる `https://makotu821-cell.github.io/a-bit/`）を入れる
 6. **Project Settings → API** で `Project URL` と `anon public` キーを控える
 
-> **ログインメールに6桁コードを入れる**（ホーム画面に追加したアプリでログインするのに必要）: **Authentication → Emails → Magic Link** のテンプレート本文に `<p>ログインコード: <b>{{ .Token }}</b></p>` を1行追加して保存。
+> **メンバーのログインを作る**: **Authentication → Users → Add user → Create new user** でメールアドレスとパスワードを入れ、「Auto Confirm User」にチェックして作成。メンバーはアプリでそのメール＋パスワードでログインする（ホーム画面に追加したアプリでもそのまま使え、ログインは保持される）。
+> バンド共通のアカウント1つを作ってみんなで使ってもOK（データはメンバー全員で共有なので機能は変わらない）。
 
 > メンバー以外に使われないように: **Authentication → Sign In / Providers** で *Allow new users to sign up* をオフにし、**Authentication → Users → Invite user** からメンバー6人のメールアドレスを招待するのがおすすめ。
 
