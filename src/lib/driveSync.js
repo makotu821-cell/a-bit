@@ -1,22 +1,58 @@
 // Google ドライブの「バンド共有フォルダ」以下を丸ごと読み込み、楽曲に自動で振り分ける
 import { useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { isDemo } from './supabase'
+import { isDemo, isConfigured, supabase } from './supabase'
 import { clearDriveToken, currentDriveToken, loginGoogleDrive } from './googleDrive'
 import { matchDriveFiles } from './driveMatch'
 
 const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY
 const ROOT = import.meta.env.VITE_GOOGLE_DRIVE_FOLDER_ID
 
-export const driveSyncEnabled = isDemo || Boolean(ROOT && (API_KEY || import.meta.env.VITE_GOOGLE_CLIENT_ID))
+// ブラウザから直接読む方式（API キー or 各自 Google ログイン）が設定されているか
+const clientModeReady = Boolean(ROOT && (API_KEY || import.meta.env.VITE_GOOGLE_CLIENT_ID))
+// サーバー方式（drive-sync 関数）も試すので、Supabase が設定されていれば有効
+export const driveSyncEnabled = isDemo || isConfigured
 // ROOT に "root" を指定するとマイドライブ全体が対象になる（共有アカウント運用向け）
 const IS_MY_DRIVE = ROOT === 'root'
-export const driveRootUrl = !ROOT ? null : IS_MY_DRIVE ? 'https://drive.google.com/drive/my-drive' : `https://drive.google.com/drive/folders/${ROOT}`
+export const driveRootUrl = !ROOT || IS_MY_DRIVE ? 'https://drive.google.com/drive/my-drive' : `https://drive.google.com/drive/folders/${ROOT}`
+const _unused = IS_MY_DRIVE ? 'https://drive.google.com/drive/my-drive' : `https://drive.google.com/drive/folders/${ROOT}`
 
 const FOLDER_MIME = 'application/vnd.google-apps.folder'
 const FIELDS = 'nextPageToken,files(id,name,mimeType,parents,webViewLink,size,modifiedTime,iconLink)'
 
 export class DriveAuthError extends Error {}
+export class DriveConnectError extends Error {}   // サーバー方式で未接続
+export class DriveNotSetupError extends Error {}  // どの方式も未設定（表示しない）
+
+/** サーバー方式: drive-sync 関数がバンドのアカウントでドライブを読む。関数が無ければ null */
+async function fetchViaServer() {
+  try {
+    const { data, error } = await supabase.functions.invoke('drive-sync', { body: { action: 'list', root: ROOT || 'root' } })
+    if (error || !data) return null
+    if (data.ok) return data.tree
+    if (data.reason === 'not_connected') throw new DriveConnectError('Googleドライブが未接続です')
+    if (data.reason === 'drive_error') throw new Error('Googleドライブの読み込みに失敗しました')
+    return null // not_configured など → ブラウザ方式へ
+  } catch (e) {
+    if (e instanceof DriveConnectError || e.message?.startsWith('Google')) throw e
+    return null
+  }
+}
+
+async function fetchTree() {
+  const tree = await fetchViaServer()
+  if (tree) return tree
+  if (!clientModeReady) throw new DriveNotSetupError('not setup')
+  return fetchDriveTree()
+}
+
+/** バンドの Google アカウントで1回だけ接続（Google の画面が開く） */
+export async function connectDrive() {
+  const { data, error } = await supabase.functions.invoke('drive-sync', { body: { action: 'start' } })
+  if (error || !data?.ok) throw new Error('接続の準備に失敗しました（drive-sync 関数の設定を確認してください）')
+  const w = window.open(data.url, '_blank')
+  if (!w) window.location.href = data.url
+}
 
 async function list(q, pageToken) {
   const token = currentDriveToken()
@@ -98,7 +134,7 @@ export function useDriveFiles(songs, customFolders) {
   const qc = useQueryClient()
   const q = useQuery({
     queryKey: ['drive_tree'],
-    queryFn: () => (isDemo ? new Promise((r) => setTimeout(() => r(demoTree()), 400)) : fetchDriveTree()),
+    queryFn: () => (isDemo ? new Promise((r) => setTimeout(() => r(demoTree()), 400)) : fetchTree()),
     enabled: driveSyncEnabled,
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: true,
@@ -110,13 +146,15 @@ export function useDriveFiles(songs, customFolders) {
   )
   const total = useMemo(() => Object.values(bySong).reduce((s, l) => s + l.length, 0), [bySong])
   return {
-    enabled: driveSyncEnabled,
+    enabled: driveSyncEnabled && !(q.error instanceof DriveNotSetupError),
     bySong,
     total,
     allCount: q.data?.files.length ?? 0,
     isFetching: q.isFetching,
     fetchedAt: q.data?.fetchedAt,
     needsLogin: q.error instanceof DriveAuthError,
+    needsConnect: q.error instanceof DriveConnectError,
+    connect: connectDrive,
     error: q.error,
     refresh: () => qc.invalidateQueries({ queryKey: ['drive_tree'] }),
     login: async () => { await loginGoogleDrive(); await qc.invalidateQueries({ queryKey: ['drive_tree'] }) },

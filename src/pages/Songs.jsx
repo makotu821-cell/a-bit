@@ -115,7 +115,9 @@ function DriveStatus({ drive }) {
     <div className="-mt-2 mb-4 flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-xs">
       <HardDrive className="h-4 w-4 text-accent shrink-0" />
       <div className="flex-1 min-w-0">
-        {drive.needsLogin ? (
+        {drive.needsConnect ? (
+          <span className="text-amber-300">ドライブ未接続：バンドのGoogleアカウントで最初に1回だけ接続してください</span>
+        ) : drive.needsLogin ? (
           <span className="text-amber-300">ドライブ連携: フォルダを読むにはGoogleログインが必要です</span>
         ) : drive.error ? (
           <span className="text-red-300">ドライブ連携エラー: {drive.error.message}</span>
@@ -128,7 +130,11 @@ function DriveStatus({ drive }) {
           </span>
         )}
       </div>
-      {drive.needsLogin ? (
+      {drive.needsConnect ? (
+        <Button size="sm" onClick={() => drive.connect().catch((e) => toast.error(e.message))}>
+          <LogIn className="h-3.5 w-3.5" />接続
+        </Button>
+      ) : drive.needsLogin ? (
         <Button size="sm" onClick={() => drive.login().catch((e) => toast.error(e.message || 'ログインできませんでした'))}>
           <LogIn className="h-3.5 w-3.5" />Googleログイン
         </Button>

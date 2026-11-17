@@ -137,6 +137,25 @@ A-BiT（共有フォルダ）
 画面を開いたとき・5分ごと（画面に戻ったとき）に自動で再読み込み。⟳ ボタンで今すぐ同期もできる。
 ドライブから来たファイルは緑のドライブアイコンで表示され、削除・移動はドライブ側で行う。
 
+## Googleドライブを「ずっとログインしっぱなし」にする（おすすめ）
+
+バンド共有の Google アカウントで**最初に1回だけ接続**すれば、以降はサーバーがドライブを読むので、メンバーは Google ログイン不要になる。
+
+1. **Google Cloud**（API キーを作ったのと同じプロジェクト）
+   - Google Auth Platform → **対象（Audience）** → **アプリを公開（Publish app）** で「本番環境」にする
+     （「テスト」のままだと 7 日で接続が切れる。未確認アプリの警告が出るが、バンドで使う分には「詳細 → 移動」で進めてOK）
+   - **クライアント** → 作成済みのウェブクライアントを開き、**承認済みのリダイレクト URI** に
+     `https://<SupabaseのProject ID>.supabase.co/functions/v1/drive-sync` を追加
+   - 同じ画面の **クライアントシークレット** を控える（無ければ「シークレットを追加」）
+2. **Supabase**
+   - SQL Editor で `supabase/app_settings.sql` を実行
+   - Edge Functions → Deploy a new function → Via Editor、関数名 `drive-sync`、中身は `supabase/functions/drive-sync/index.ts` → Deploy
+   - 関数の設定で **Verify JWT をオフ**
+   - Edge Functions → Secrets に `GOOGLE_CLIENT_ID`（クライアントID）と `GOOGLE_CLIENT_SECRET`（シークレット）を登録
+3. **アプリ**: 楽曲画面の「ドライブ未接続」の **接続** を押し、**バンド共有の Google アカウント**で許可 → 「接続しました」と出たら閉じる
+
+以降は誰が開いても自動でドライブのファイルが曲に振り分けられる。読む範囲は `VITE_GOOGLE_DRIVE_FOLDER_ID`（未設定ならマイドライブ全体）。
+
 ## LINE グループへのお知らせ
 
 ### そのまま使える（設定不要）
