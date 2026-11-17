@@ -45,6 +45,41 @@ Base44 版（band-base-sync.base44.app）を GitHub + Supabase で作り直し�
 | `VITE_GOOGLE_API_KEY` | （任意）Google Drive 連携用 |
 | `VITE_GOOGLE_DRIVE_FOLDER_ID` | （任意）ドライブ自動連携するバンド共有フォルダのID |
 
+#### 各 Secret の値の取り方
+
+**`VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`**（Supabase）
+
+1. supabase.com にログイン → 自分のプロジェクトを開く
+2. 画面上部の **Connect** ボタンを押すと、URL と公開用キーがまとめて表示される
+   （または左下の歯車 **Project Settings** → **API Keys**）
+3. `https://xxxx.supabase.co` の形の URL → `VITE_SUPABASE_URL`
+4. 公開用キー → `VITE_SUPABASE_ANON_KEY`
+   - `sb_publishable_...` で始まる **Publishable key** と、`eyJ...` で始まる **anon public**（Legacy API keys タブ）のどちらでも動く
+   - `secret` / `service_role` のキーは**絶対に使わない**（全データを無制限に触れる鍵なので）
+
+**`VITE_GOOGLE_API_KEY`**（Google Cloud）
+
+1. https://console.cloud.google.com にログインし、上部のプロジェクト選択から **新しいプロジェクト**（名前は例: `a-bit`）
+2. **APIとサービス → ライブラリ** で **Google Drive API** と **Google Picker API** を検索して、それぞれ **有効にする**
+3. **APIとサービス → 認証情報 → 認証情報を作成 → API キー**
+4. 表示されたキー（`AIza...`）→ `VITE_GOOGLE_API_KEY`
+5. （おすすめ）作ったキーを開き、「アプリケーションの制限」を **ウェブサイト** にして `https://makotu821-cell.github.io/*` を追加、「API の制限」で Drive API と Picker API だけに絞る
+
+**`VITE_GOOGLE_CLIENT_ID`**（Google Cloud・同じプロジェクト）
+
+1. 左メニュー **Google Auth Platform**（または「APIとサービス → OAuth 同意画面」）を開き、初回はアプリ名・サポートメールを入れて登録（対象は **外部**）
+2. **対象（Audience）** → **テストユーザー** にメンバーの Gmail を追加（自分も含めて）
+3. **クライアント → クライアントを作成** → 種類は **ウェブ アプリケーション**
+4. **承認済みの JavaScript 生成元** に `https://makotu821-cell.github.io` を追加（末尾の `/a-bit` は付けない）。手元で試すなら `http://localhost:5173` も
+5. 作成後に表示される `xxxx.apps.googleusercontent.com` → `VITE_GOOGLE_CLIENT_ID`（クライアントシークレットは不要）
+
+**`VITE_GOOGLE_DRIVE_FOLDER_ID`**（Googleドライブ）
+
+1. バンドの共有フォルダをブラウザのドライブで開く
+2. アドレスバーの `https://drive.google.com/drive/folders/1AbCdEfGh...` の **`folders/` より後ろの文字列**（`?usp=...` が付いていたらその前まで）→ `VITE_GOOGLE_DRIVE_FOLDER_ID`
+
+> Secret を追加・変更したら、**Actions → Deploy to GitHub Pages → Run workflow** で再ビルドすると反映される。
+
 ### 3. GitHub Pages を有効化
 
 **Settings → Pages → Build and deployment → Source** を **GitHub Actions** にする。
