@@ -15,6 +15,11 @@ const STATUS_BADGE = {
   '確定': 'bg-emerald-500/15 text-emerald-300 border-emerald-400/30',
 }
 const MARK_CLS = { ok: 'text-emerald-400', maybe: 'text-amber-300', ng: 'text-red-400' }
+const MARK_ON = {
+  ok: 'bg-emerald-500/25 border-emerald-400 text-emerald-300',
+  maybe: 'bg-amber-400/20 border-amber-300 text-amber-200',
+  ng: 'bg-red-500/20 border-red-400 text-red-300',
+}
 
 export default function Poll() {
   const { data: polls = [], isLoading } = usePolls()
@@ -267,7 +272,8 @@ function AnswerForm({ poll, byMember }) {
 
   const save = useAction(async () => {
     const cleanMemos = Object.fromEntries(Object.entries(memos).filter(([, v]) => v && v.trim()))
-    const payload = { poll_id: poll.id, member_name: member, responses: ans, date_memos: cleanMemos }
+    const cleanAns = Object.fromEntries(Object.entries(ans).filter(([, v]) => v))
+    const payload = { poll_id: poll.id, member_name: member, responses: cleanAns, date_memos: cleanMemos }
     return existing ? db.PollResponse.update(existing.id, payload) : db.PollResponse.create(payload)
   }, ['poll_responses'])
 
@@ -277,7 +283,17 @@ function AnswerForm({ poll, byMember }) {
     catch (e) { toast.error(e.message) }
   }
 
-  const setAll = (v) => setAns(Object.fromEntries(dates.map((d) => [d, v])))
+  const [pen, setPen] = useState('ng')
+  const [showMemo, setShowMemo] = useState(false)
+  // 同じペンでもう一度タップすると未回答に戻す
+  const paint = (d) => {
+    const next = { ...ans }
+    if (next[d] === pen) delete next[d]
+    else next[d] = pen
+    setAns(next)
+  }
+  const unanswered = dates.filter((d) => !ans[d]).length
+  const fillRest = (v) => setAns({ ...Object.fromEntries(dates.map((d) => [d, v])), ...Object.fromEntries(Object.entries(ans).filter(([, x]) => x)) })
 
   return (
     <Card className="p-4">
@@ -297,37 +313,71 @@ function AnswerForm({ poll, byMember }) {
 
       {member && (
         <>
-          <div className="flex gap-1.5 mb-2 text-xs">
-            <span className="text-muted self-center mr-1">一括:</span>
-            {['ok', 'maybe', 'ng'].map((k) => <button key={k} onClick={() => setAll(k)} className={cn('px-2.5 py-1 rounded-lg border border-border', MARK_CLS[k])}>全部{ANSWER_MARK[k]}</button>)}
+          {/* ペンを選んで日付をタップ → 残りを一括で埋める */}
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xs text-muted">ペン</span>
+            {['ok', 'maybe', 'ng'].map((k) => (
+              <button key={k} onClick={() => setPen(k)}
+                className={cn('h-10 w-12 rounded-xl border-2 text-xl transition', pen === k ? MARK_ON[k] : 'border-border text-white/40')}>
+                {ANSWER_MARK[k]}
+              </button>
+            ))}
+            <span className="text-[11px] text-muted leading-tight">で日付を<br />タップ</span>
           </div>
-          <div className="space-y-1.5 max-h-[60vh] overflow-y-auto pr-1">
+
+          <div className="grid grid-cols-7 text-center text-[11px] mb-1">
+            {['日', '月', '火', '水', '木', '金', '土'].map((w, i) => (
+              <div key={w} className={i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-muted'}>{w}</div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7 gap-1">
+            {Array.from({ length: dates.length ? parseISO(dates[0]).getDay() : 0 }).map((_, i) => <div key={'b' + i} />)}
             {dates.map((d) => {
+              const a = ans[d]
               const dow = parseISO(d).getDay()
               return (
-                <div key={d} className="rounded-xl bg-bg/50 border border-border p-2">
-                  <div className="flex items-center gap-2">
-                    <span className={cn('num text-sm w-16 shrink-0', dow === 0 ? 'text-red-400' : dow === 6 ? 'text-blue-400' : '')}>{mdw(d)}</span>
-                    <div className="flex gap-1">
-                      {['ok', 'maybe', 'ng'].map((k) => (
-                        <button key={k} onClick={() => setAns({ ...ans, [d]: ans[d] === k ? undefined : k })}
-                          className={cn('h-9 w-11 rounded-lg border text-lg transition',
-                            ans[d] === k ? {
-                              ok: 'bg-emerald-500/25 border-emerald-400 text-emerald-300',
-                              maybe: 'bg-amber-400/20 border-amber-300 text-amber-200',
-                              ng: 'bg-red-500/20 border-red-400 text-red-300',
-                            }[k] : 'border-border text-white/30')}>
-                          {ANSWER_MARK[k]}
-                        </button>
-                      ))}
-                    </div>
-                    <input value={memos[d] || ''} onChange={(e) => setMemos({ ...memos, [d]: e.target.value })} placeholder="コメント"
-                      className="flex-1 min-w-0 h-9 rounded-lg bg-transparent border border-border px-2 text-[16px] placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-primary" />
-                  </div>
-                </div>
+                <button key={d} onClick={() => paint(d)}
+                  className={cn('relative h-12 rounded-lg border text-center transition active:scale-95',
+                    a ? MARK_ON[a] : 'border-border bg-bg/50')}>
+                  <span className={cn('absolute top-0.5 left-1 num text-[10px]', !a && (dow === 0 ? 'text-red-400' : dow === 6 ? 'text-blue-400' : 'text-muted'))}>
+                    {parseISO(d).getDate()}
+                  </span>
+                  <span className="text-lg leading-[3rem]">{a ? ANSWER_MARK[a] : ''}</span>
+                  {memos[d] && <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-amber-300" />}
+                </button>
               )
             })}
           </div>
+
+          <div className="mt-3 flex flex-wrap gap-1.5 text-xs">
+            <span className="text-muted self-center">未回答 {unanswered}日 →</span>
+            {['ok', 'maybe', 'ng'].map((k) => (
+              <button key={k} disabled={!unanswered} onClick={() => fillRest(k)}
+                className={cn('px-2.5 py-1.5 rounded-lg border border-border disabled:opacity-40', MARK_CLS[k])}>残りを全部{ANSWER_MARK[k]}</button>
+            ))}
+            <button onClick={() => setAns({})} className="px-2.5 py-1.5 rounded-lg border border-border text-muted">クリア</button>
+          </div>
+
+          <button onClick={() => setShowMemo(!showMemo)} className="mt-3 w-full flex items-center justify-between rounded-xl border border-border px-3 py-2 text-sm">
+            <span>日ごとのコメント{Object.values(memos).filter((v) => v && v.trim()).length > 0 && <span className="ml-1 text-amber-300">（{Object.values(memos).filter((v) => v && v.trim()).length}件）</span>}</span>
+            <span className="text-muted text-xs">{showMemo ? '閉じる' : '開く'}</span>
+          </button>
+          {showMemo && (
+            <div className="mt-2 space-y-1 max-h-[45vh] overflow-y-auto pr-1">
+              {dates.map((d) => {
+                const dow = parseISO(d).getDay()
+                return (
+                  <div key={d} className="flex items-center gap-2">
+                    <span className={cn('num text-xs w-14 shrink-0', dow === 0 ? 'text-red-400' : dow === 6 ? 'text-blue-400' : '')}>{mdw(d)}</span>
+                    <span className={cn('w-4 text-center', MARK_CLS[ans[d]])}>{ANSWER_MARK[ans[d]] || '−'}</span>
+                    <input value={memos[d] || ''} onChange={(e) => setMemos({ ...memos, [d]: e.target.value })} placeholder="コメント（休み確定 など）"
+                      className="flex-1 min-w-0 h-9 rounded-lg bg-transparent border border-border px-2 text-[16px] placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-primary" />
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
           <Button className="w-full justify-center mt-3" size="lg" loading={save.isPending} onClick={submit}>
             <Send className="h-4 w-4" />{existing ? '回答を更新' : '回答を送信'}
           </Button>
