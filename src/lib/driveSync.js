@@ -50,8 +50,8 @@ async function fetchTree() {
 export async function connectDrive() {
   const { data, error } = await supabase.functions.invoke('drive-sync', { body: { action: 'start' } })
   if (error || !data?.ok) throw new Error('接続の準備に失敗しました（drive-sync 関数の設定を確認してください）')
-  const w = window.open(data.url, '_blank')
-  if (!w) window.location.href = data.url
+  // 接続が終わると Google → 関数 → アプリに自動で戻ってくる
+  window.location.href = data.url
 }
 
 async function list(q, pageToken) {

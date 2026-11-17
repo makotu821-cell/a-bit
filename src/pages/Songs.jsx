@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
 import { Folder, Plus, Search, Music, HardDrive, RefreshCw, LogIn, ExternalLink } from 'lucide-react'
@@ -110,6 +110,17 @@ export default function Songs() {
 }
 
 function DriveStatus({ drive }) {
+  // ドライブ接続から戻ってきたときの結果表示
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    const r = url.searchParams.get('drive')
+    if (!r) return
+    if (r === 'connected') { toast.success('Googleドライブを接続しました'); drive.refresh() }
+    else toast.error('ドライブの接続に失敗しました。もう一度「接続」を押してください')
+    url.searchParams.delete('drive')
+    window.history.replaceState(null, '', url.toString())
+  }, []) // eslint-disable-line
+
   const time = drive.fetchedAt ? new Date(drive.fetchedAt).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : ''
   return (
     <div className="-mt-2 mb-4 flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-xs">

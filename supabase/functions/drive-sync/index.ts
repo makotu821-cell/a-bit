@@ -23,9 +23,10 @@ const cors = {
 }
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } })
-const html = (msg: string) =>
-  new Response(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><body style="font-family:sans-serif;background:#0b0a14;color:#eee;display:grid;place-items:center;height:90vh;text-align:center"><div><h2>${msg}</h2><p>この画面を閉じて A-BiT に戻ってください</p></div>`,
-    { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+// Supabase の関数からは HTML ページを表示できないので、結果を付けてアプリに戻す
+const APP_URL = Deno.env.get('APP_URL') || 'https://makotu821-cell.github.io/a-bit/'
+const backToApp = (result: 'connected' | 'error') =>
+  new Response(null, { status: 302, headers: { Location: `${APP_URL}?drive=${result}` } })
 
 const getSetting = async (key: string) =>
   (await admin.from('app_settings').select('value').eq('key', key).maybeSingle()).data?.value ?? null
@@ -99,13 +100,13 @@ Deno.serve(async (req) => {
   if (req.method === 'GET') {
     const code = url.searchParams.get('code')
     const state = url.searchParams.get('state')
-    if (!code || !state || state !== (await getSetting('google_oauth_state'))) return html('接続に失敗しました（もう一度お試しください）')
+    if (!code || !state || state !== (await getSetting('google_oauth_state'))) return backToApp('error')
     await setSetting('google_oauth_state', null)
     const { ok, data } = await token({ grant_type: 'authorization_code', code, redirect_uri: REDIRECT_URI })
-    if (!ok || !data.refresh_token) return html('接続に失敗しました（もう一度お試しください）')
+    if (!ok || !data.refresh_token) return backToApp('error')
     await setSetting('google_refresh_token', data.refresh_token)
     cached = { value: data.access_token, exp: Date.now() + (data.expires_in - 120) * 1000 }
-    return html('Googleドライブを接続しました 🎸')
+    return backToApp('connected')
   }
 
   // ---- アプリからの呼び出し（ログイン必須） ----
