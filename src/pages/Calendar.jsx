@@ -4,12 +4,13 @@ import { AnimatePresence, motion } from 'framer-motion'
 import {
   addMonths, eachDayOfInterval, endOfMonth, endOfWeek, format, isSameMonth, isToday, startOfMonth, startOfWeek, subMonths,
 } from 'date-fns'
-import { ChevronLeft, ChevronRight, Copy, Check, Plus, MapPin, Clock, Mic2, Guitar, CalendarDays, MessageSquare, Trash2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Copy, Check, Plus, MapPin, Clock, Mic2, Guitar, CalendarDays, MessageSquare, Trash2, MessageCircle } from 'lucide-react'
 import { PageHeader } from '../components/Layout'
 import { Button, Card, Empty, Field, Input, Modal, Select, Skeleton, Confirm } from '../components/ui'
 import { db, useAction, useEvents, usePollResponses, usePolls } from '../lib/api'
 import { EVENT_TYPES } from '../lib/constants'
 import { getDateInfo, formatEventsText } from '../lib/pollInfo'
+import { lineShareUrl } from '../lib/line'
 import { cn, fmt, mdw, timeRange, ymd, HALF_HOURS } from '../lib/utils'
 
 const TYPE_STYLE = {
@@ -130,9 +131,15 @@ export default function Calendar() {
       <div className="mt-6">
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-display text-lg font-bold">今月の予定</h2>
-          <Button size="sm" variant="secondary" onClick={copyAll}>
+          <div className="flex gap-2"><Button size="sm" variant="secondary" onClick={copyAll}>
             {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}{copied ? 'コピー完了' : '全部コピー'}
           </Button>
+          {monthEvents.length > 0 && (
+            <a href={lineShareUrl(formatEventsText(monthEvents, polls, responses))} target="_blank" rel="noreferrer"
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-xl text-sm font-medium text-white bg-[#06C755]">
+              <MessageCircle className="h-4 w-4" />LINE
+            </a>
+          )}</div>
         </div>
         {monthEvents.length === 0 ? (
           <Card><Empty icon={CalendarDays} title="今月の予定はありません">日付をタップして予定を追加できます</Empty></Card>

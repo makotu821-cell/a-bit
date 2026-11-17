@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { eachDayOfInterval, endOfMonth, parseISO, startOfMonth } from 'date-fns'
-import { Plus, Trash2, CheckCircle2, ClipboardList, MessageSquare, CalendarCheck, Send } from 'lucide-react'
+import { Plus, Trash2, CheckCircle2, ClipboardList, MessageSquare, CalendarCheck, Send, MessageCircle } from 'lucide-react'
 import { PageHeader } from '../components/Layout'
 import { Badge, Button, Card, Empty, Field, Input, Modal, Select, Skeleton, Textarea } from '../components/ui'
-import { db, useAction, usePollResponses, usePolls } from '../lib/api'
+import { db, useAction, useEvents, usePollResponses, usePolls } from '../lib/api'
+import { decideMessage, lineShareUrl, notifyLine } from '../lib/line'
 import { ANSWER_MARK, COLORS, DEFAULT_DECIDE, MEMBERS, MEMBER_COLORS } from '../lib/constants'
 import { cn, fmt, mdw, ymd, HALF_HOURS, timeRange } from '../lib/utils'
 
@@ -103,6 +104,12 @@ function PollDetail({ poll, responses }) {
   const [confirmDel, setConfirmDel] = useState(false)
   const [deciding, setDeciding] = useState(false)
   const del = useAction(() => db.SchedulePoll.delete(poll.id), ['schedule_polls', 'poll_responses'])
+  const { data: events = [] } = useEvents()
+  const [shareText, setShareText] = useState(null)
+  const resendLine = () => {
+    const evs = events.filter((e) => e.type === 'スタジオ' && (poll.decided_dates || []).includes(e.date))
+    setShareText(decideMessage(poll, evs, responses))
+  }
 
   const byMember = useMemo(() => Object.fromEntries(responses.map((r) => [r.member_name, r])), [responses])
 
@@ -161,6 +168,7 @@ function PollDetail({ poll, responses }) {
               {(poll.decided_dates || []).map((d) => <Badge key={d} className="bg-emerald-500/20 text-emerald-200 border-emerald-400/30 num">{mdw(d)}</Badge>)}
             </div>
             {poll.decide_memo && <p className="text-sm mt-2 text-slate-300"><span className="text-xs text-muted mr-2">備考</span>{poll.decide_memo}</p>}
+            <Button size="sm" variant="secondary" className="mt-3" onClick={resendLine}><MessageCircle className="h-4 w-4 text-[#06C755]" />LINEで送る</Button>
           </div>
         )}
       </Card>
@@ -237,9 +245,10 @@ function PollDetail({ poll, responses }) {
           <Button variant="accent" className="w-full justify-center" size="lg" onClick={() => setDeciding(true)}>
             <CalendarCheck className="h-5 w-5" />日程を確定する
           </Button>
-          <DecideModal open={deciding} onClose={() => setDeciding(false)} poll={poll} stats={stats} />
+          <DecideModal open={deciding} onClose={() => setDeciding(false)} poll={poll} stats={stats} responses={responses} onShare={setShareText} />
         </>
       )}
+      <LineShareModal text={shareText} onClose={() => setShareText(null)} />
     </div>
   )
 }
@@ -328,19 +337,20 @@ function AnswerForm({ poll, byMember }) {
   )
 }
 
-function DecideModal({ open, onClose, poll, stats }) {
+function DecideModal({ open, onClose, poll, stats, responses, onShare }) {
   const [sel, setSel] = useState({}) // date -> {start,end,location}
   const [memo, setMemo] = useState('')
   const dates = poll.candidate_dates || []
 
   const decide = useAction(async () => {
     const chosen = Object.keys(sel).sort()
-    await db.Event.bulkCreate(chosen.map((d) => ({
+    const events = await db.Event.bulkCreate(chosen.map((d) => ({
       title: 'スタジオ練習', type: 'スタジオ', date: d,
       start_time: sel[d].start || null, end_time: sel[d].end || null,
       location: sel[d].location || null, memo: memo || null,
     })))
-    await db.SchedulePoll.update(poll.id, { status: '確定', decided_dates: chosen, decide_memo: memo || null })
+    const updated = await db.SchedulePoll.update(poll.id, { status: '確定', decided_dates: chosen, decide_memo: memo || null })
+    return { events, poll: updated }
   }, ['events', 'schedule_polls'])
 
   const toggle = (d) => {
@@ -357,7 +367,16 @@ function DecideModal({ open, onClose, poll, stats }) {
       footer={<>
         <Button variant="secondary" onClick={onClose}>キャンセル</Button>
         <Button disabled={!count} loading={decide.isPending} onClick={async () => {
-          try { await decide.mutateAsync(); toast.success(`${count}日をカレンダーに登録しました`); onClose() }
+          try {
+            const { events, poll: updated } = await decide.mutateAsync()
+            toast.success(`${count}日をカレンダーに登録しました`)
+            onClose()
+            // LINE グループへ自動送信。bot 未設定なら「LINEで送る」画面を出す
+            const text = decideMessage(updated, events, responses)
+            const r = await notifyLine(text)
+            if (r.ok) toast.success('LINEグループにお知らせしました')
+            else onShare(text)
+          }
           catch (e) { toast.error(e.message) }
         }}>{count}日を確定</Button>
       </>}>
@@ -387,6 +406,24 @@ function DecideModal({ open, onClose, poll, stats }) {
       <Field label="備考（カレンダーに表示）" className="mt-3">
         <Textarea className="min-h-[70px]" value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="集合10:45 など" />
       </Field>
+    </Modal>
+  )
+}
+
+function LineShareModal({ text, onClose }) {
+  return (
+    <Modal open={!!text} onClose={onClose} title="LINEでお知らせ">
+      <pre className="whitespace-pre-wrap text-sm bg-bg rounded-xl p-3 max-h-[45vh] overflow-y-auto font-sans">{text}</pre>
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <Button variant="secondary" className="justify-center" onClick={async () => {
+          try { await navigator.clipboard.writeText(text); toast.success('コピーしました') } catch { toast.error('コピーできませんでした') }
+        }}>コピー</Button>
+        <a href={text ? lineShareUrl(text) : '#'} target="_blank" rel="noreferrer" onClick={onClose}
+          className="inline-flex items-center justify-center gap-2 h-10 rounded-xl font-medium text-white bg-[#06C755] hover:brightness-110">
+          <MessageCircle className="h-4 w-4" />LINEで送る
+        </a>
+      </div>
+      <p className="text-[11px] text-muted mt-2">「LINEで送る」→ バンドのグループを選んで送信</p>
     </Modal>
   )
 }

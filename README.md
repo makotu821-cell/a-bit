@@ -134,6 +134,32 @@ A-BiT（共有フォルダ）
 画面を開いたとき・5分ごと（画面に戻ったとき）に自動で再読み込み。⟳ ボタンで今すぐ同期もできる。
 ドライブから来たファイルは緑のドライブアイコンで表示され、削除・移動はドライブ側で行う。
 
+## LINE グループへのお知らせ
+
+### そのまま使える（設定不要）
+アンケートで日程を確定すると「LINEでお知らせ」画面が出る。**LINEで送る** → バンドのグループを選んで送信。
+確定済みアンケートの「LINEで送る」、カレンダーの「LINE」ボタンからも送れる。
+
+### 自動で送る（LINE bot をグループに入れる・任意）
+設定すると、確定した瞬間に bot がグループへ自動投稿する（上の画面は出なくなる）。
+
+1. **LINE公式アカウントを作る**: https://entry.line.biz/ から作成（無料プラン）
+2. **Messaging API を有効化**: LINE Official Account Manager → 設定 → Messaging API → 有効にする（プロバイダーは新規作成でOK）
+3. **グループ参加を許可**: 同じく 設定 → アカウント設定 → 「グループ・複数人チャットへの参加を許可する」をオン。応答設定の「応答メッセージ」「あいさつメッセージ」はオフ
+4. **キーを控える**: https://developers.line.biz/console/ → 作ったチャネル
+   - チャネル基本設定 → **チャネルシークレット**
+   - Messaging API設定 → **チャネルアクセストークン（長期）** を発行
+5. **Supabase に表を作る**: SQL Editor で `supabase/line.sql` を実行
+6. **Supabase に関数を置く**: Edge Functions → Deploy a new function → Via Editor
+   - 関数名 `line-notify`、中身は `supabase/functions/line-notify/index.ts` を貼り付けて Deploy
+   - 関数の Details で **Enforce JWT verification（Verify JWT）をオフ**（LINE からの Webhook を受けるため。アプリからの呼び出しは関数内でログイン確認している）
+   - Edge Functions → Secrets に `LINE_CHANNEL_ACCESS_TOKEN` と `LINE_CHANNEL_SECRET` を登録
+7. **Webhook をつなぐ**: LINE Developers → Messaging API設定 → Webhook URL に
+   `https://<SupabaseのProject ID>.supabase.co/functions/v1/line-notify` を入れて「Webhookの利用」をオン（「検証」で成功すればOK）
+8. **bot をバンドのグループに招待**: 入ると「A-BiT の通知をこのグループに送ります」と返事が来る（返事が来ない場合はグループで何か一言送ると認識される）
+
+bot の push は月の無料通数を使う（月2〜3回のお知らせなら無料枠内）。
+
 ## 手元で動かす
 
 ```bash
