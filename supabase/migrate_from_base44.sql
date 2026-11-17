@@ -63,3 +63,33 @@ insert into public.events (title, type, date)
 select 'スタジオ練習', 'スタジオ', d::date
 from (values ('2026-10-14'), ('2026-10-28'), ('2026-11-09'), ('2026-11-18')) as v(d)
 where not exists (select 1 from public.events e where e.date = v.d::date and e.type = 'スタジオ');
+
+-- ---------- 12月の確定済みアンケートとスタジオ予定 ----------
+-- 回答は確定日（12/9・12/30）の分だけ引き継ぎ（他の候補日の回答は空欄）
+do $$
+declare pid uuid;
+begin
+  if not exists (select 1 from public.schedule_polls where title = '2026年12月 スタジオ候補日') then
+    insert into public.schedule_polls (title, status, candidate_dates, decided_dates)
+    values (
+      '2026年12月 スタジオ候補日', '確定',
+      (select array_agg(to_char(d, 'YYYY-MM-DD') order by d)
+         from generate_series(date '2026-12-01', date '2026-12-31', interval '1 day') d),
+      array['2026-12-09', '2026-12-30']
+    )
+    returning id into pid;
+
+    insert into public.poll_responses (poll_id, member_name, responses, date_memos, created_date) values
+      (pid, 'ひろむ',     '{"2026-12-09":"ok","2026-12-30":"ok"}', '{}', now() - interval '6 minutes'),
+      (pid, 'まこ',       '{"2026-12-09":"ok","2026-12-30":"ok"}', '{}', now() - interval '5 minutes'),
+      (pid, 'まっすー',   '{"2026-12-09":"ok","2026-12-30":"ok"}', '{}', now() - interval '4 minutes'),
+      (pid, 'ひで',       '{"2026-12-09":"ok","2026-12-30":"ok"}', '{}', now() - interval '3 minutes'),
+      (pid, 'はるぴょい', '{"2026-12-09":"ng","2026-12-30":"ok"}', '{"2026-12-30":"休み確定"}', now() - interval '2 minutes'),
+      (pid, 'とんちゃん', '{"2026-12-09":"ok","2026-12-30":"ok"}', '{}', now() - interval '1 minutes');
+  end if;
+end $$;
+
+insert into public.events (title, type, date, start_time, end_time, location)
+select 'スタジオ練習', 'スタジオ', d::date, '11:00', '15:00', '川崎'
+from (values ('2026-12-09'), ('2026-12-30')) as v(d)
+where not exists (select 1 from public.events e where e.date = v.d::date and e.type = 'スタジオ');

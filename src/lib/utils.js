@@ -11,9 +11,9 @@ export const fmt = (s, pattern) => format(typeof s === 'string' ? parseISO(s) : 
 export const mdw = (s) => fmt(s, 'M/d(E)')
 
 export const timeRange = (start, end) => {
-  if (start && end) return `${start}～${end}`
-  if (start) return `${start}～`
-  if (end) return `～${end}`
+  if (start && end) return `${start}〜${end}`
+  if (start) return `${start}〜`
+  if (end) return `〜${end}`
   return ''
 }
 

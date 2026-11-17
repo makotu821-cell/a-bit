@@ -49,3 +49,16 @@ test('貯金: 自動計算は符号反転、手動は上書き', () => {
   assert.equal(history[2].value, 0)
   assert.equal(total, 3800)
 })
+
+test('カレンダーのコピー文（Base44と同じ形式）', async () => {
+  const { formatEventsText } = await import('./pollInfo.js')
+  const polls = [{ id: 'p', status: '確定', candidate_dates: ['2026-12-09', '2026-12-10'], decided_dates: ['2026-12-09'] }]
+  const responses = [
+    { poll_id: 'p', member_name: 'ひろむ', created_date: '1', responses: { '2026-12-09': 'ok' }, date_memos: {} },
+    { poll_id: 'p', member_name: 'はるぴょい', created_date: '2', responses: { '2026-12-09': 'ng' }, date_memos: {} },
+    { poll_id: 'p', member_name: 'まこ', created_date: '3', responses: { '2026-12-09': 'ok' }, date_memos: { '2026-12-09': '休み確定' } },
+  ]
+  const events = [{ date: '2026-12-09', start_time: '11:00', end_time: '15:00', location: '川崎', title: 'スタジオ練習' }]
+  assert.equal(formatEventsText(events, polls, responses),
+    '12/9(水) 11:00〜15:00 川崎 スタジオ練習\n  ○ひろむ\n  ×はるぴょい\n  ○まこ: 休み確定')
+})

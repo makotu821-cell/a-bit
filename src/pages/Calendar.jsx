@@ -156,7 +156,7 @@ export default function Calendar() {
                     {(info || e.memo) && (
                       <button onClick={() => setExpanded({ ...expanded, [e.id]: !expanded[e.id] })}
                         className={cn('p-2 rounded-lg', expanded[e.id] ? 'bg-amber-400/15 text-amber-300' : 'text-amber-300/80 hover:bg-white/5')}>
-                        <MessageSquare className="h-4 w-4" />
+                        <span className="flex items-center gap-1"><MessageSquare className="h-4 w-4" />{info?.entries.length > 0 && <span className="num text-xs">{info.entries.length}</span>}</span>
                       </button>
                     )}
                   </div>

@@ -1,30 +1,28 @@
-import { ANSWER_MARK, MEMBERS } from './constants.js'
+import { ANSWER_MARK } from './constants.js'
 import { mdw, timeRange } from './utils.js'
 
 /**
  * 指定日のアンケート情報（日程確定の備考・メンバーの○△×とコメント）
- * 対象: その日を候補日に含むアンケート（確定日を含むものを優先）
- * メンバー行は「コメントあり」または「○以外の回答」のみ（全員○・コメントなしは省略）
+ * 対象: その日を候補日に含むアンケート（確定済みのものは確定日のみ）
+ * メンバー行: その日に回答かコメントがある全員（回答した順）
  */
 export function getDateInfo(date, polls, responses) {
   // 確定済みアンケートは確定日だけを対象にする（確定しなかった日には吹き出しを出さない）
   const related = polls.filter((p) => (p.candidate_dates || []).includes(date)
     && (p.status !== '確定' || (p.decided_dates || []).includes(date)))
   if (!related.length) return null
-  const decided = related.filter((p) => (p.decided_dates || []).includes(date))
-  const targets = decided.length ? decided : related
-  const memo = decided.map((p) => p.decide_memo).filter(Boolean).join(' / ')
+  const memo = related
+    .filter((p) => (p.decided_dates || []).includes(date))
+    .map((p) => p.decide_memo).filter(Boolean).join(' / ')
   const entries = []
-  targets.forEach((p) => {
+  related.forEach((p) => {
     responses
       .filter((r) => r.poll_id === p.id)
-      .sort((a, b) => MEMBERS.indexOf(a.member_name) - MEMBERS.indexOf(b.member_name))
+      .sort((a, b) => (a.created_date || '').localeCompare(b.created_date || ''))
       .forEach((r) => {
         const ans = r.responses?.[date]
         const comment = (r.date_memos?.[date] || '').trim()
-        if (comment || (ans && ans !== 'ok')) {
-          entries.push({ member: r.member_name, mark: ANSWER_MARK[ans] || '', comment })
-        }
+        if (ans || comment) entries.push({ member: r.member_name, mark: ANSWER_MARK[ans] || '', comment })
       })
   })
   if (!memo && !entries.length) return null
