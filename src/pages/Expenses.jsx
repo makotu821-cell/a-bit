@@ -211,7 +211,7 @@ function Savings({ savings, monthKey, overrides }) {
               <span className="num">{format(parseISO(h.month + '-01'), 'yyyy年M月')}</span>
               <span className="text-right">
                 <span className={cn('num font-medium', h.value > 0 ? 'text-emerald-400' : h.value < 0 ? 'text-red-400' : 'text-muted')}>{signedYen(h.value)}</span>
-                {h.manual !== null && <span className="block text-[10px] text-muted">手動設定（自動計算: {signedYen(h.auto)}）{h.note && ` ・ ${h.note}`}</span>}
+                {h.manual !== null && <span className="block text-[10px] text-muted">{h.note?.startsWith('Base44') ? h.note : <>手動設定（自動計算: {signedYen(h.auto)}）{h.note && ` ・ ${h.note}`}</>}</span>}
               </span>
             </div>
           ))}
