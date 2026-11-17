@@ -1,0 +1,119 @@
+// Google ドライブの「バンド共有フォルダ」以下を丸ごと読み込み、楽曲に自動で振り分ける
+import { useMemo } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { isDemo } from './supabase'
+import { currentDriveToken, loginGoogleDrive } from './googleDrive'
+import { matchDriveFiles } from './driveMatch'
+
+const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY
+const ROOT = import.meta.env.VITE_GOOGLE_DRIVE_FOLDER_ID
+
+export const driveSyncEnabled = isDemo || Boolean(ROOT && (API_KEY || import.meta.env.VITE_GOOGLE_CLIENT_ID))
+export const driveRootUrl = ROOT ? `https://drive.google.com/drive/folders/${ROOT}` : null
+
+const FOLDER_MIME = 'application/vnd.google-apps.folder'
+const FIELDS = 'nextPageToken,files(id,name,mimeType,parents,webViewLink,size,modifiedTime,iconLink)'
+
+export class DriveAuthError extends Error {}
+
+async function list(q, pageToken) {
+  const token = currentDriveToken()
+  const params = new URLSearchParams({
+    q, fields: FIELDS, pageSize: '1000',
+    supportsAllDrives: 'true', includeItemsFromAllDrives: 'true',
+  })
+  if (pageToken) params.set('pageToken', pageToken)
+  if (!token) params.set('key', API_KEY || '')
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  if (res.status === 401 || res.status === 403 || res.status === 404) {
+    throw new DriveAuthError('Googleドライブのフォルダを読めませんでした')
+  }
+  if (!res.ok) throw new Error(`Google Drive API エラー (${res.status})`)
+  return res.json()
+}
+
+/** ルートフォルダ以下を幅優先でたどる（親フォルダ40件ずつまとめて問い合わせ） */
+export async function fetchDriveTree(rootId = ROOT) {
+  const folders = { [rootId]: { id: rootId, name: '', parent: null } }
+  const files = []
+  let frontier = [rootId]
+  while (frontier.length) {
+    const next = []
+    for (let i = 0; i < frontier.length; i += 40) {
+      const chunk = frontier.slice(i, i + 40)
+      const q = `(${chunk.map((id) => `'${id}' in parents`).join(' or ')}) and trashed = false`
+      let pageToken
+      do {
+        const data = await list(q, pageToken)
+        for (const f of data.files || []) {
+          const parent = (f.parents || []).find((p) => chunk.includes(p)) || chunk[0]
+          if (f.mimeType === FOLDER_MIME) {
+            if (!folders[f.id]) { folders[f.id] = { id: f.id, name: f.name, parent }; next.push(f.id) }
+          } else {
+            files.push({ ...f, parents: [parent], size: f.size ? Number(f.size) : null })
+          }
+        }
+        pageToken = data.nextPageToken
+      } while (pageToken)
+    }
+    frontier = next
+  }
+  return { rootId, folders, files, fetchedAt: Date.now() }
+}
+
+// デモモード用のダミーのドライブ
+function demoTree() {
+  const F = (id, name, parent) => ({ id, name, parent })
+  const file = (id, name, parent, size = 3_400_000) => ({
+    id, name, parents: [parent], size, mimeType: 'audio/wav',
+    webViewLink: `https://drive.google.com/file/d/${id}/view`, modifiedTime: new Date().toISOString(),
+  })
+  return {
+    rootId: 'root',
+    fetchedAt: Date.now(),
+    folders: {
+      root: F('root', 'A-BiT', null),
+      k: F('k', '片想い', 'root'), kp: F('kp', 'プリプロ', 'k'), kd: F('kd', 'ドラム', 'kp'), kb: F('kb', 'ベース', 'kp'),
+      o: F('o', '音源まとめ', 'root'), om: F('om', 'MIX', 'o'),
+    },
+    files: [
+      file('d1', '片想い_drum_take1.wav', 'kd'), file('d2', '片想い_drum_take2.wav', 'kd'),
+      file('d3', 'bass_line.wav', 'kb'), file('d4', 'ガイドメロ.mp3', 'kp', 820_000),
+      file('d5', 'タイムトラベラー_mix_v3.wav', 'om'), file('d6', '偽りの迷宮 demo.mp3', 'o', 1_200_000),
+      { ...file('d7', '冬桜 歌詞', 'root', null), mimeType: 'application/vnd.google-apps.document' },
+      file('d8', '機材メモ.txt', 'root', 2000),
+    ],
+  }
+}
+
+/** 楽曲ごとのドライブファイルを返すフック */
+export function useDriveFiles(songs, customFolders) {
+  const qc = useQueryClient()
+  const q = useQuery({
+    queryKey: ['drive_tree'],
+    queryFn: () => (isDemo ? new Promise((r) => setTimeout(() => r(demoTree()), 400)) : fetchDriveTree()),
+    enabled: driveSyncEnabled,
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: true,
+    retry: false,
+  })
+  const bySong = useMemo(
+    () => (q.data ? matchDriveFiles(q.data, songs, customFolders) : {}),
+    [q.data, songs, customFolders],
+  )
+  const total = useMemo(() => Object.values(bySong).reduce((s, l) => s + l.length, 0), [bySong])
+  return {
+    enabled: driveSyncEnabled,
+    bySong,
+    total,
+    allCount: q.data?.files.length ?? 0,
+    isFetching: q.isFetching,
+    fetchedAt: q.data?.fetchedAt,
+    needsLogin: q.error instanceof DriveAuthError,
+    error: q.error,
+    refresh: () => qc.invalidateQueries({ queryKey: ['drive_tree'] }),
+    login: async () => { await loginGoogleDrive(); await qc.invalidateQueries({ queryKey: ['drive_tree'] }) },
+  }
+}
