@@ -16,6 +16,8 @@ export default function AuthGate({ children }) {
   const [mode, setMode] = useState('password')
   const [password, setPassword] = useState('')
   const [signingIn, setSigningIn] = useState(false)
+  const [password2, setPassword2] = useState('')
+  const [invite, setInvite] = useState('')
 
   useEffect(() => {
     if (!isConfigured || isDemo) return
@@ -68,6 +70,47 @@ export default function AuthGate({ children }) {
     if (error) toast.error(error.message.includes('Invalid login') ? 'メールアドレスかパスワードが違います' : error.message)
   }
 
+  // 新規登録（メール＋パスワード）。合言葉は supabase/signup_guard.sql を入れるとサーバー側でチェックされる
+  const signUp = async (e) => {
+    e.preventDefault()
+    if (password.length < 6) return toast.error('パスワードは6文字以上にしてください')
+    if (password !== password2) return toast.error('パスワードが一致しません')
+    setSigningIn(true)
+    const { data, error } = await supabase.auth.signUp({
+      email, password,
+      options: { data: { invite: invite.trim() }, emailRedirectTo: window.location.origin + import.meta.env.BASE_URL },
+    })
+    setSigningIn(false)
+    if (error) {
+      const m = error.message
+      if (/already registered|already exists/i.test(m)) toast.error('このメールアドレスは登録済みです。ログインしてください')
+      else if (/invite|合言葉|Database error/i.test(m)) toast.error('合言葉が違います')
+      else if (/Signups not allowed/i.test(m)) toast.error('新規登録は締め切られています')
+      else toast.error(m)
+      return
+    }
+    if (!data.session) {
+      toast.success('確認メールを送りました。メールのリンクを開いたあと、ログインしてください', { duration: 8000 })
+      setMode('password')
+    }
+  }
+
+  if (mode === 'signup') {
+    return (
+      <Shell>
+        <form onSubmit={signUp} className="space-y-3">
+          <p className="font-medium">新規登録</p>
+          <Input type="email" autoComplete="username" required placeholder="メールアドレス" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <Input type="password" autoComplete="new-password" required placeholder="パスワード（6文字以上）" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <Input type="password" autoComplete="new-password" required placeholder="パスワード（確認）" value={password2} onChange={(e) => setPassword2(e.target.value)} />
+          <Input required placeholder="バンドの合言葉" value={invite} onChange={(e) => setInvite(e.target.value)} />
+          <Button type="submit" className="w-full justify-center" loading={signingIn}>登録してはじめる</Button>
+        </form>
+        <button onClick={() => setMode('password')} className="mt-4 w-full text-center text-xs text-muted underline">登録済みの人はこちら（ログイン）</button>
+      </Shell>
+    )
+  }
+
   if (mode === 'password') {
     return (
       <Shell>
@@ -77,6 +120,7 @@ export default function AuthGate({ children }) {
           <Input type="password" autoComplete="current-password" required placeholder="パスワード" value={password} onChange={(e) => setPassword(e.target.value)} />
           <Button type="submit" className="w-full justify-center" loading={signingIn}>ログイン</Button>
         </form>
+        <Button variant="secondary" className="mt-3 w-full justify-center" onClick={() => setMode('signup')}>はじめての人は新規登録</Button>
         <button onClick={() => setMode('link')} className="mt-4 w-full text-center text-xs text-muted underline">パスワードなしでメールのリンクからログイン</button>
       </Shell>
     )

@@ -11,6 +11,9 @@ import Calendar from './pages/Calendar'
 import Poll from './pages/Poll'
 import Expenses from './pages/Expenses'
 import Spec from './pages/Spec'
+import { startAutoUpdate } from './lib/autoUpdate'
+
+startAutoUpdate()
 
 const qc = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: true } } })
 const basename = import.meta.env.BASE_URL.replace(/\/$/, '')
