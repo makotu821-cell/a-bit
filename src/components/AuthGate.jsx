@@ -70,7 +70,7 @@ function Shell({ children }) {
     <div className="min-h-screen bg-bg text-slate-100 grid place-items-center p-4">
       <Card className="w-full max-w-sm p-6">
         <div className="flex items-center gap-2 mb-5">
-          <span className="grid place-items-center h-9 w-9 rounded-lg bg-gradient-to-br from-primary to-accent font-display font-bold">A</span>
+          <img src={`${import.meta.env.BASE_URL}icon-192.png`} alt="" className="h-9 w-9 rounded-lg object-cover ring-1 ring-white/10" />
           <div>
             <p className="font-display text-lg font-bold leading-none">A-BiT</p>
             <p className="text-xs text-muted">band coordination suite</p>

@@ -16,7 +16,7 @@ export default function Layout() {
       <header className="sticky top-0 z-30 bg-bg/80 backdrop-blur border-b border-border">
         <div className="mx-auto max-w-6xl px-4 h-14 flex items-center justify-between">
           <NavLink to="/" className="flex items-center gap-2">
-            <span className="grid place-items-center h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-accent text-white font-display font-bold text-sm">A</span>
+            <img src={`${import.meta.env.BASE_URL}icon-192.png`} alt="" className="h-8 w-8 rounded-lg object-cover ring-1 ring-white/10" />
             <span className="font-display text-lg font-bold tracking-tight">A-BiT</span>
           </NavLink>
           <nav className="hidden md:flex items-center gap-1">
